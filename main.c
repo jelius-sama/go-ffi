@@ -1,8 +1,24 @@
 #include <stdio.h>
-#include "add/libadd.h"
+#include "libgolang/libgolang.h"
+#include <unistd.h>
 
 int main() {
-    int addition = Add(34, 35);
-    printf("34 + 35 = %d\n", addition);
+    char *msg;
+    msg = Handler("/", "Hello, World!");
+    printf("handler: %s", msg);
+
+    msg = Handler("/kazu", "Hello, Kazuma!");
+    printf("handler: %s", msg);
+
+    msg = Handler("/coding", "ABSOLUTE CODING!!!");
+    printf("handler: %s", msg);
+
+    char *ret = StartServer(":6969");
+    printf("net/http: %s", ret);
+
+    for (;;) {
+        pause();
+    }
+
     return 0;
 }

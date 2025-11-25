@@ -1,14 +1,18 @@
-.PHONY: dynamic-link static-link
+CC := gcc
+CFLAGS := -Wall -Wextra -O3
+CSLIBS := -L./libgolang -lgolang
 
-dynamic:
-	go build -buildmode=c-shared -o ./add/libadd.so ./add/add.go
-	gcc -Wall -Wextra -O3 \
-		-o ./dynamic ./main.c \
-		-L./add -ladd \
-		-Wl,-rpath,'$$ORIGIN/add'
+GOC := go
+GOFLAGS := build -buildmode=c-archive
 
-static:
-	go build -buildmode=c-archive -o ./add/libadd.a ./add/add.go
-	gcc -Wall -Wextra -static -O3 \
-		-o ./static ./main.c ./add/libadd.a \
-		-pthread -ldl
+.PHONY: build clean
+
+build:
+	@cd libgolang && $(GOC) $(GOFLAGS) -o ./libgolang.a ./golang.go
+	@mkdir -p ./bin
+	@$(CC) $(CFLAGS) -o ./bin/go-ffi ./main.c $(CSLIBS)
+	@echo "Successfully built \`./bin/go-ffi\`."
+
+clean:
+	rm ./bin/go-ffi
+	rm ./libgolang/libgolang.a
