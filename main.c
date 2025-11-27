@@ -1,24 +1,121 @@
 #include <stdio.h>
-#include "libgolang/libgolang.h"
+#include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
+#include "libgolang/libgolang.h"
+#include <signal.h>
 
-int main() {
-    char *msg;
-    msg = Handler("/", "Hello, World!");
-    printf("handler: %s", msg);
+volatile sig_atomic_t running = 1;    // shared between main and signal handler
 
-    msg = Handler("/kazu", "Hello, Kazuma!");
-    printf("handler: %s", msg);
+void handle_sigint(int sig) {
+    (void)sig; // unused
+    printf("\nSIGINT received. Cleaning up...\n");
+    running = 0;   // tell main loop to exit
+}
 
-    msg = Handler("/coding", "ABSOLUTE CODING!!!");
-    printf("handler: %s", msg);
-
-    char *ret = StartServer(":6969");
-    printf("net/http: %s", ret);
+void* monitor_loop(void* context) {
+    MonitorConfig* config = (MonitorConfig*)context;
 
     for (;;) {
-        pause();
+        usleep(config->intervalMs * 1000);
+
+        uint64_t currentCount = HttpGetRequestCount();
+
+        // Allocate on heap so it persists across channel
+        uint64_t* countPtr = malloc(sizeof(uint64_t));
+        *countPtr = currentCount;
+
+        ChannelSend(config->statsChannel, countPtr);
     }
 
+    return NULL;  // Never reached
+}
+
+int main() {
+    if (signal(SIGINT, handle_sigint) == SIG_ERR) {
+        perror("signal");
+        exit(1);
+    }
+
+    printf("╔═══════════════════════════════════════════════════════════╗\n");
+    printf("║        C-Go FFI Demo: Async Tasks & Channels              ║\n");
+    printf("╚═══════════════════════════════════════════════════════════╝\n");
+
+    // Register HTTP routes
+    char* msg;
+    msg = HttpRegisterRoute("/", "Hello, FFI World!");
+    printf("%s", msg);
+    free(msg);
+
+    msg = HttpRegisterRoute("/kazu", "Hello, Kazuma!");
+    printf("%s", msg);
+    free(msg);
+
+    msg = HttpRegisterRoute("/coding", "ABSOLUTE CODING!!!");
+    printf("%s", msg);
+    free(msg);
+
+    msg = HttpRegisterRoute("/ping", "pong");
+    printf("%s", msg);
+    free(msg);
+
+    // Launch HTTP server asynchronously (returns char* on error)
+    TaskHandle serverTask = TaskLaunch(HttpStartServer, ":6969");
+
+    // Create buffered channel for statistics
+    ChannelHandle statsChannel = ChannelCreate(16);
+
+    // Configure and launch monitor
+    MonitorConfig* monitorConfig = malloc(sizeof(MonitorConfig));
+    monitorConfig->statsChannel = statsChannel;
+    monitorConfig->intervalMs = 1000;
+
+    TaskHandle monitorTask = TaskLaunch(monitor_loop, monitorConfig);
+
+    printf("\n📊 Real-time Statistics (Ctrl+C to quit)\n");
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+    // Event loop using non-blocking poll pattern
+    for (;;) {
+        if (!running) {
+            break;
+        }
+
+        // Check if server crashed (non-blocking)
+        void* errorMsg = NULL;
+        int serverStatus = TaskPoll(serverTask, &errorMsg);
+
+        if (serverStatus == 0) {
+            // Server task completed (should never happen unless error)
+            printf("\n❌ SERVER ERROR: %s\n", (char*)errorMsg);
+            free(errorMsg);
+            break;
+        } else if (serverStatus == -2) {
+            printf("\n⚠️  Server task handle invalid\n");
+            break;
+        }
+        // serverStatus == -1 means still running (expected)
+
+        // Receive statistics from monitor (blocking)
+        uint64_t* statsPtr = (uint64_t*)ChannelRecv(statsChannel);
+
+        if (statsPtr == NULL) {
+            printf("\n📡 Stats channel closed\n");
+            break;
+        }
+
+        // Display statistics
+        printf("┃ Total Requests: %llu\n", (unsigned long long)*statsPtr);
+        free(statsPtr);
+    }
+
+    // Cleanup (in real app, this would be in signal handler)
+    printf("\n🧹 Cleaning up...\n");
+    ChannelClose(statsChannel);
+    TaskCleanup(serverTask);
+    TaskCleanup(monitorTask);
+    free(monitorConfig);
+
+    printf("👋 Goodbye!\n");
     return 0;
 }
