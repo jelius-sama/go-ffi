@@ -36,6 +36,7 @@ int main() {
         perror("signal");
         exit(1);
     }
+    uint64_t hist = 0;
 
     printf("╔═══════════════════════════════════════════════════════════╗\n");
     printf("║        C-Go FFI Demo: Async Tasks & Channels              ║\n");
@@ -104,8 +105,12 @@ int main() {
             break;
         }
 
-        // Display statistics
-        printf("┃ Total Requests: %llu\n", (unsigned long long)*statsPtr);
+        if (hist != *statsPtr) {
+            // Display statistics
+            printf("┃ Total Requests: %llu\n", (unsigned long long)*statsPtr);
+        }
+
+        hist = *statsPtr;
         free(statsPtr);
     }
 
