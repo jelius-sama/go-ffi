@@ -1,5 +1,5 @@
 CC     := gcc
-CFLAGS := -Wall -Wextra -static -O3
+CFLAGS := -Wall -Wextra -static -O3 -s
 CSLIBS := -L./libgolang -lgolang
 
 GOC     := go
