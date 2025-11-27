@@ -281,7 +281,7 @@ func HttpStartServer(addr *C.char) *C.char {
 		return C.CString(fmt.Sprintf("ERROR: %v", err))
 	}
 
-	return C.CString("Server stopped")
+	return C.CString("Unreachable: Server stopped")
 }
 
 func main() {}

@@ -7,13 +7,13 @@
 
 volatile sig_atomic_t running = 1;    // shared between main and signal handler
 
-void handle_sigint(int sig) {
+static inline void handle_sigint(int sig) {
     (void)sig; // unused
     printf("\nSIGINT received. Cleaning up...\n");
     running = 0;   // tell main loop to exit
 }
 
-void* monitor_loop(void* context) {
+static inline void* monitor_loop(void* context) {
     MonitorConfig* config = (MonitorConfig*)context;
 
     for (;;) {
@@ -38,9 +38,9 @@ int main() {
     }
     uint64_t hist = 0;
 
-    printf("╔═══════════════════════════════════════════════════════════╗\n");
-    printf("║        C-Go FFI Demo: Async Tasks & Channels              ║\n");
-    printf("╚═══════════════════════════════════════════════════════════╝\n");
+    printf("╔═════════════════════════════════════════════════════════════════╗\n");
+    printf("║              C-Go FFI Demo: Async Tasks & Channels              ║\n");
+    printf("╚═════════════════════════════════════════════════════════════════╝\n");
 
     // Register HTTP routes
     char* msg;
@@ -74,14 +74,10 @@ int main() {
     TaskHandle monitorTask = TaskLaunch(monitor_loop, monitorConfig);
 
     printf("\n📊 Real-time Statistics (Ctrl+C to quit)\n");
-    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
     // Event loop using non-blocking poll pattern
-    for (;;) {
-        if (!running) {
-            break;
-        }
-
+    while (running) {
         // Check if server crashed (non-blocking)
         void* errorMsg = NULL;
         int serverStatus = TaskPoll(serverTask, &errorMsg);
@@ -95,7 +91,9 @@ int main() {
             printf("\n⚠️  Server task handle invalid\n");
             break;
         }
-        // serverStatus == -1 means still running (expected)
+        /* NOTE:
+         * serverStatus == -1 means still running (expected)
+        */
 
         // Receive statistics from monitor (blocking)
         uint64_t* statsPtr = (uint64_t*)ChannelRecv(statsChannel);
@@ -114,13 +112,12 @@ int main() {
         free(statsPtr);
     }
 
-    // Cleanup (in real app, this would be in signal handler)
-    printf("\n🧹 Cleaning up...\n");
     ChannelClose(statsChannel);
     TaskCleanup(serverTask);
     TaskCleanup(monitorTask);
     free(monitorConfig);
 
+    printf("\n🧹 Cleaned up.\n");
     printf("👋 Goodbye!\n");
     return 0;
 }

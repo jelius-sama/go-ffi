@@ -1,18 +1,27 @@
-CC := gcc
-CFLAGS := -Wall -Wextra -O3
+CC     := gcc
+CFLAGS := -Wall -Wextra -static -O3
 CSLIBS := -L./libgolang -lgolang
 
-GOC := go
-GOFLAGS := build -buildmode=c-archive
+GOC     := go
+GOFLAGS := build -buildmode=c-archive -tags netgo -ldflags '-extldflags "-static"'
 
-.PHONY: build clean
+BIN     := bin/go-ffi
+GOLIB   := libgolang/libgolang.a
+GOSRC   := libgolang/golang.go
+CSRC    := main.c
 
-build:
-	@cd libgolang && $(GOC) $(GOFLAGS) -o ./libgolang.a ./golang.go
-	@mkdir -p ./bin
-	@$(CC) $(CFLAGS) -o ./bin/go-ffi ./main.c $(CSLIBS)
-	@echo "Successfully built \`./bin/go-ffi\`."
+.PHONY: all clean
+
+all: $(BIN)
+
+$(GOLIB): $(GOSRC)
+	@cd libgolang && $(GOC) $(GOFLAGS) -o libgolang.a golang.go 
+	@echo Successfully build \`$(GOLIB)\`.
+
+$(BIN): $(CSRC) $(GOLIB)
+	@mkdir -p bin
+	@$(CC) $(CFLAGS) -o $(BIN) $(CSRC) $(CSLIBS)
+	@echo Successfully build \`$(BIN)\`.
 
 clean:
-	rm ./bin/go-ffi
-	rm ./libgolang/libgolang.a
+	rm -f $(BIN) $(GOLIB)
